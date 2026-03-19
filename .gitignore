@@ -1,0 +1,71 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+.venv/*
+
+# Pipenv
+Pipfile.lock
+
+# Poetry
+.poetry/
+
+# Pytest
+.pytest_cache/
+
+# mypy
+.mypy_cache/
+
+# Coverage
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+
+# Build / distribution
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Editors
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# macOS
+.DS_Store
+
+# Linux
+*~
+
+# Environment vars and secrets
+.env
+.env.*
+
+# Dagster
+dagster.yaml
+
+# Local deployment artifacts
+deployments/local/.venv/
+
+# Data (generated / large files)
+/data/
+
+# Logs
+*.log
+
+# JetBrains
+*.iml
+
+# Temporary files
+*.tmp
+*.swp
