@@ -53,6 +53,7 @@ dist/
 
 # Dagster
 dagster.yaml
+.dagster_home/
 
 # Local deployment artifacts
 deployments/local/.venv/
@@ -69,3 +70,4 @@ deployments/local/.venv/
 # Temporary files
 *.tmp
 *.swp
+
