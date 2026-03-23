@@ -1,10 +1,9 @@
 # planning
 
-1. create database (without relations, in imdb schema)
+
+1. use partitions to load title_principals
 2. modify dataframe tables a bit more (check deletions etc from sql queries) (part of staging)
-3. create table emptieing script
-4. load data into database
-5. create relations
+5. create imdb_schema asset that adds all relations, primary keys, foreign keys (and propably create a script that removes specific relations to update databse)
 6. add movie watch list to dataabse (in a new schema) (update scripts)
 7. create automatic loading of onedrive data in dataabse
 8. automate everything daily

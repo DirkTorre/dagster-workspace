@@ -22,3 +22,13 @@ je kan ze als dependency importeren door gewoon een string te gebruiken
 def total_line_count(context: dg.AssetExecutionContext):
     return 5
 ```
+
+
+## 2026 - 03 - 23
+
+polars naar database werkt nu.
+
+de juiste asset staat in: /projects/imdb/src/imdb/defs/transform/assets
+
+De grap was dat je een speciale PolarsParquetIOManager resource moest defineren.
+Ik heb deze in de resource van transform gezet.
