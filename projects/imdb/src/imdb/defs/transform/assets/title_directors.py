@@ -2,13 +2,14 @@ import dagster as dg
 import polars as pl
 from .. import loaders
 
+
 @dg.asset(
     deps=["title_crew_raw"],
     description="Data for directors table",
     group_name="transform_and_load",
     required_resource_keys={
         "file_registry",
-        "postgres_resource",
+        "postgres",
     },
 )
 def title_directors_loaded(context: dg.AssetExecutionContext):
@@ -16,20 +17,21 @@ def title_directors_loaded(context: dg.AssetExecutionContext):
     raw_data_path = FileRegistry.get_path("title_crew")
     context.log.info(f"Reading raw data from {raw_data_path}")
 
-    df = loaders.load_title_crew_memory(raw_data_path)
+    title_directors = (
+        loaders.load_title_crew_memory(raw_data_path)
+        .select(
+            pl.col("tconst"),
+            pl.col("directors").alias("nconst").str.split(","),
+        )
+        .explode("nconst")
+        .drop_nulls("nconst")
+    )
 
-    title_directors = df.select(
-        pl.col("tconst"),
-        pl.col("directors").str.split(","),
-    ).explode("directors")
-
-    # TODO: more transformation for dataabse ingestion (header names, data types, etc.)
-
-    with context.resources.postgres_resource.connect() as conn:
-        context.log.info(f"Writing title_directors to database")
-        title_directors.write_database(
-            table_name="imdb.title_directors",
-            if_table_exists="replace",)
+    pr = context.resources.postgres
+    context.log.info("Writing title_directors to imdb.title_directors")
+    pr.load_polars_dataframe(
+        df=title_directors, table_name="title_directors", schema="imdb"
+    )
 
     return dg.MaterializeResult(
         # TODO: schema

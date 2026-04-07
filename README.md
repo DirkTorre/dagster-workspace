@@ -1,0 +1,1 @@
+first execute setup_postgres.sh

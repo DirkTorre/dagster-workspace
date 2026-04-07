@@ -986,6 +986,7 @@ dependencies = [
     { name = "polars" },
     { name = "psycopg2" },
     { name = "psycopg2-binary" },
+    { name = "pydantic" },
 ]
 
 [package.dev-dependencies]
@@ -1005,6 +1006,7 @@ requires-dist = [
     { name = "polars", specifier = ">=1.39.2" },
     { name = "psycopg2", specifier = ">=2.9.11" },
     { name = "psycopg2-binary", specifier = ">=2.9.11" },
+    { name = "pydantic", specifier = ">=2.12.5" },
 ]
 
 [package.metadata.requires-dev]

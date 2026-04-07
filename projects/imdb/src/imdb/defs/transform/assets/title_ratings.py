@@ -1,13 +1,14 @@
 import dagster as dg
 import polars as pl
 
+
 @dg.asset(
     deps=["title_ratings_raw"],
     description="Data for title_ratings table",
     group_name="transform_and_load",
     required_resource_keys={
         "file_registry",
-        "postgres_resource",
+        "postgres",
     },
 )
 def title_ratings_loaded(context: dg.AssetExecutionContext):
@@ -29,13 +30,15 @@ def title_ratings_loaded(context: dg.AssetExecutionContext):
         },
     )
 
-    with context.resources.postgres_resource.connect() as conn:
-        context.log.info(f"Writing title_ratings to database")
-        title_ratings.write_database(
-            table_name="imdb.title_ratings",
-            if_table_exists="replace", 
-            connection=conn
-        )
+    title_ratings = title_ratings.rename(
+        {"numVotes": "num_votes", "averageRating": "average_rating"}
+    )
+
+    pr = context.resources.postgres
+    context.log.info("Writing title_ratings to imdb.title_ratings")
+    pr.load_polars_dataframe(
+        df=title_ratings, table_name="title_ratings", schema="imdb"
+    )
 
     return dg.MaterializeResult(
         # TODO: schema

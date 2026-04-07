@@ -3,13 +3,14 @@ import polars as pl
 from projects.imdb.src.imdb.defs.transform.assets import title_directors
 from .. import loaders
 
+
 @dg.asset(
     deps=["title_basics_raw"],
     description="Data for genres table",
     group_name="transform_and_load",
     required_resource_keys={
         "file_registry",
-        "postgres_resource",
+        "postgres",
     },
 )
 def title_genres_loaded(context: dg.AssetExecutionContext):
@@ -19,19 +20,17 @@ def title_genres_loaded(context: dg.AssetExecutionContext):
 
     title_basics = loaders.load_title_basics_memory(raw_data_path)
 
-    # TODO: more transformation for dataabse ingestion (header names, data types, etc.)
+    title_genres = (
+        title_basics.select(
+            pl.col("tconst"), pl.col("genres").str.split(",").alias("genre")
+        )
+        .explode("genre")
+        .drop_nulls("genre")
+    )
 
-    title_genres = title_basics.select(
-        pl.col("tconst"), 
-        pl.col("genres").str.split(",")
-        ).explode("genres")
-
-    with context.resources.postgres_resource.connect() as conn:
-        context.log.info(f"Writing title_genres to database")
-        title_genres.write_database(
-            table_name="imdb.title_genres",
-            if_table_exists="replace",
-            connection=conn)
+    pr = context.resources.postgres
+    context.log.info("Writing title_genres to imdb.title_genres")
+    pr.load_polars_dataframe(df=title_genres, table_name="title_genres", schema="imdb")
 
     return dg.MaterializeResult(
         # TODO: schema
@@ -40,13 +39,3 @@ def title_genres_loaded(context: dg.AssetExecutionContext):
             # "preview": title_basics.head().to_pandas().to_markdown() # moet beter
         },
     )
-
-
-
-
-
-
-
-
-
-

@@ -1,14 +1,15 @@
 import dagster as dg
 import polars as pl
 
+
 @dg.asset(
     deps=["title_akas_raw"],
     description="Data for title_akas table",
     group_name="transform_and_load",
     required_resource_keys={
         "file_registry",
-        "postgres_resource",
-    },  # needed to use file_registry in the asset function
+        "postgres",
+    },
 )
 def title_akas_loaded(context: dg.AssetExecutionContext):
     FileRegistry = context.resources.file_registry
@@ -36,18 +37,14 @@ def title_akas_loaded(context: dg.AssetExecutionContext):
 
     title_akas = title_akas.with_columns(
         pl.col("isOriginalTitle").cast(pl.Boolean)
-    )
+    ).rename({"titleId": "title_id", "isOriginalTitle": "is_original_title"})
 
-    with context.resources.postgres_resource.connect() as conn:
-        context.log.info(f"Writing title_akas to database")
-        title_akas.write_database(
-            table_name="imdb.title_akas",
-            if_table_exists="replace",
-            connection=conn
-        )
+    pr = context.resources.postgres
+
+    context.log.info(f"Writing title_akas to imdb.title_akas")
+    pr.load_polars_dataframe(df=title_akas, table_name="title_akas", schema="imdb")
 
     return dg.MaterializeResult(
-        value=title_akas,
         # TODO: schema
         metadata={
             "num_rows": title_akas.height

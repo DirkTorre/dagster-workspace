@@ -1,9 +1,13 @@
 # planning
-
-
-1. use partitions to load title_principals
-2. modify dataframe tables a bit more (check deletions etc from sql queries) (part of staging)
-5. create imdb_schema asset that adds all relations, primary keys, foreign keys (and propably create a script that removes specific relations to update databse)
+1. make scripts work with new database
+    - (done) create database connection class with methods
+    - (done) add the new database connection to dagster
+    - (done) implement the new class to load data
+    - create assets for relationship building
+    - modify postgres resource to work with dagster resources
+    - create log for loading data
+2. modify database to have (sorted) partitions (for large (and medium) tables) (remember that i have less ram to work with on my server)
+5. create assets that create and remove relationships. every relationship will become it's own asset (but can be grouped a bit if possible)
 6. add movie watch list to dataabse (in a new schema) (update scripts)
 7. create automatic loading of onedrive data in dataabse
 8. automate everything daily
@@ -21,7 +25,7 @@
     - create two schema's: imdb and personal data
     - create database schema which also has the tv series in it.
     - when updateing the datasbe, just delete all data in the tables and load agian, no update scripts.
-    - create a well designed datase
+    - create a better designed datase
     - create partitions, but not indexes, because this takes forever.
     - include a script in the project that automatically can create the (empty) databse plus a user. put credentials for this in the .env file.
     - show which postgres settings to adjust for better performance.
