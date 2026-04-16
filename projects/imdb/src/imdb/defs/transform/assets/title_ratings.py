@@ -1,9 +1,10 @@
 import dagster as dg
 import polars as pl
+from ...transform.loaders import reload_table_with_fk
 
 
 @dg.asset(
-    deps=["title_ratings_raw"],
+    deps=["imdb_download", "title_basics_loaded"],
     description="Data for title_ratings table",
     group_name="transform_and_load",
     required_resource_keys={
@@ -34,10 +35,32 @@ def title_ratings_loaded(context: dg.AssetExecutionContext):
         {"numVotes": "num_votes", "averageRating": "average_rating"}
     )
 
-    pr = context.resources.postgres
-    context.log.info("Writing title_ratings to imdb.title_ratings")
-    pr.load_polars_dataframe(
-        df=title_ratings, table_name="title_ratings", schema="imdb"
+    pre_load_message = "removing relations of imdb.title_ratings"
+    pre_load_query = """
+        ALTER TABLE IF EXISTS imdb.title_ratings
+        DROP CONSTRAINT IF EXISTS title_ratings_fk;
+        """
+
+    post_load_message = \
+        "Adding imdb.title_basics (tconst) constraint to imdb.title_ratings"
+
+    post_load_query = """
+        ALTER TABLE IF EXISTS imdb.title_ratings
+        ADD CONSTRAINT title_ratings_fk FOREIGN KEY (tconst)
+        REFERENCES imdb.title_basics (tconst) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE CASCADE;
+        """
+
+    reload_table_with_fk(
+        context=context,
+        df=title_ratings,
+        table="title_ratings",
+        schema="imdb",
+        pre_load_message=pre_load_message,
+        pre_load_query=pre_load_query,
+        post_load_message=post_load_message,
+        post_load_query=post_load_query,
     )
 
     return dg.MaterializeResult(

@@ -4,7 +4,7 @@ from .. import loaders
 
 
 @dg.asset(
-    deps=["name_basics_raw"],
+    deps=["imdb_download"],
     description="Data for name_basics table",
     group_name="transform_and_load",
     required_resource_keys={
@@ -31,8 +31,21 @@ def name_basics_loaded(context: dg.AssetExecutionContext):
     )
 
     pr = context.resources.postgres
+    context.log.info("removing relations for imdb.name_basics")
+    pr.execute_query(
+        context,
+        """
+        ALTER TABLE imdb.name_basics DROP CONSTRAINT IF EXISTS primary_profession_nconst_fkey;
+        ALTER TABLE imdb.name_basics DROP CONSTRAINT IF EXISTS title_directors_fk_nconst;
+        ALTER TABLE imdb.name_basics DROP CONSTRAINT IF EXISTS title_principals_fk_nconst;
+        ALTER TABLE imdb.name_basics DROP CONSTRAINT IF EXISTS title_writers_fk_nconst;
+        """
+    )
+
     context.log.info("Writing name_basics to imdb.name_basics")
-    pr.load_polars_dataframe(df=name_basics, table_name="name_basics", schema="imdb")
+    pr.load_polars_dataframe(
+        context, df=name_basics, table_name="name_basics", schema="imdb"
+    )
 
     return dg.MaterializeResult(
         value=name_basics,

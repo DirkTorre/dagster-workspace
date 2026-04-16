@@ -1,13 +1,14 @@
 import dagster as dg
 import polars as pl
 
+
 @dg.asset(
-    deps=["title_episode_raw"],
+    deps=["imdb_download", "title_basics_loaded"],
     description="Data for title_episode table",
     group_name="transform_and_load",
     required_resource_keys={
         "file_registry",
-        "postgres"
+        "postgres",
     },  # needed to use file_registry in the asset function
 )
 def title_episode_loaded(context: dg.AssetExecutionContext):
@@ -31,14 +32,18 @@ def title_episode_loaded(context: dg.AssetExecutionContext):
     )
 
     title_episode = title_episode.rename(
-        {"parentTconst": "parent_tconst", "seasonNumber": "season_number", "episodeNumber": "episode_number"}
+        {
+            "parentTconst": "parent_tconst",
+            "seasonNumber": "season_number",
+            "episodeNumber": "episode_number",
+        }
     )
 
     pr = context.resources.postgres
 
     context.log.info(f"Writing title_episode to imdb.title_episode")
     pr.load_polars_dataframe(
-        df=title_episode, table_name="title_episode", schema="imdb"
+        context, df=title_episode, table_name="title_episode", schema="imdb"
     )
 
     return dg.MaterializeResult(
@@ -49,12 +54,6 @@ def title_episode_loaded(context: dg.AssetExecutionContext):
             # "preview": title_basics.head().to_pandas().to_markdown() # moet beter
         },
     )
-
-
-
-
-
-
 
     # FileRegistry = context.resources.file_registry
     # raw_data_path = FileRegistry.get_path("title_episode")
@@ -81,11 +80,9 @@ def title_episode_loaded(context: dg.AssetExecutionContext):
     #     context.log.info(f"Writing title_episode to database")
     #     title_episode.write_database(
     #         table_name="imdb.title_episode",
-    #         if_table_exists="replace", 
+    #         if_table_exists="replace",
     #         connection=conn
     #     )
-
-    
 
     # return dg.MaterializeResult(
     #     value=title_episode,
@@ -95,5 +92,3 @@ def title_episode_loaded(context: dg.AssetExecutionContext):
     #         # "preview": title_basics.head().to_pandas().to_markdown() # moet beter
     #     },
     # )
-
-

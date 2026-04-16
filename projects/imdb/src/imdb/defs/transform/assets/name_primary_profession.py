@@ -4,7 +4,7 @@ from .. import loaders
 
 
 @dg.asset(
-    deps=["name_basics_raw"],
+    deps=["imdb_download", "name_basics_loaded"],
     description="Data for name_primary_profession table",
     group_name="transform_and_load",
     required_resource_keys={"file_registry", "postgres"},
@@ -14,7 +14,7 @@ def name_primary_profession_loaded(context: dg.AssetExecutionContext):
     raw_data_path = FileRegistry.get_path("name_basics")
     context.log.info(f"Reading raw data from {raw_data_path}")
 
-    context.log.info("Creating name_basics table")
+    context.log.info("Loading name_basics table")
 
     name_primary_profession = (
         loaders.load_name_basics_memory(raw_data_path)
@@ -26,9 +26,20 @@ def name_primary_profession_loaded(context: dg.AssetExecutionContext):
     )
 
     pr = context.resources.postgres
+    context.log.info("removing relations for imdb.name_primary_profession")
+    pr.execute_query(
+        context,
+        """
+        ALTER TABLE imdb.name_basics DROP CONSTRAINT IF EXISTS name_primary_profession_nconst_fkey;
+        """
+    )
+
     context.log.info("Writing name_primary_profession to imdb.name_primary_profession")
     pr.load_polars_dataframe(
-        df=name_primary_profession, table_name="name_primary_profession", schema="imdb"
+        context,
+        df=name_primary_profession,
+        table_name="name_primary_profession",
+        schema="imdb",
     )
 
     return dg.MaterializeResult(

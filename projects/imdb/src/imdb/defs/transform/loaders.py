@@ -59,3 +59,40 @@ def load_title_crew_memory(raw_data_path: str) -> pl.DataFrame:
             "writers": pl.Utf8,
         },
     )
+
+
+def reload_table_with_fk(
+    context,
+    df: pl.DataFrame,
+    table: str,
+    schema: str,
+    pre_load_query: str,
+    pre_load_message: str,
+    post_load_query: str,
+    post_load_message: str,
+):
+    """Drop FK, reload table, re-add FK."""
+    pr = context.resources.postgres
+
+    # 1. Drop FK's
+    context.log.info(pre_load_message)
+    pr.execute_query(
+        context,
+        pre_load_query,
+    )
+
+    # 2. Load data
+    context.log.info(f"Writing dataframe to {schema}.{table}")
+    pr.load_polars_dataframe(
+        context,
+        df=df,
+        table_name=table,
+        schema=schema,
+    )
+
+    # 3. Add FK
+    context.log.info(post_load_message)
+    pr.execute_query(
+        context,
+        post_load_query,
+    )

@@ -3,7 +3,7 @@ import polars as pl
 
 
 @dg.asset(
-    deps=["title_akas_raw"],
+    deps=["imdb_download", "title_basics_loaded"],
     description="Data for title_akas table",
     group_name="transform_and_load",
     required_resource_keys={
@@ -42,7 +42,9 @@ def title_akas_loaded(context: dg.AssetExecutionContext):
     pr = context.resources.postgres
 
     context.log.info(f"Writing title_akas to imdb.title_akas")
-    pr.load_polars_dataframe(df=title_akas, table_name="title_akas", schema="imdb")
+    pr.load_polars_dataframe(
+        context, df=title_akas, table_name="title_akas", schema="imdb"
+    )
 
     return dg.MaterializeResult(
         # TODO: schema

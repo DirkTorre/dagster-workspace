@@ -3,9 +3,19 @@
     - (done) create database connection class with methods
     - (done) add the new database connection to dagster
     - (done) implement the new class to load data
+    - (done) modify postgres resource to work with dagster resources
+    - (done) create log for loading data
     - create assets for relationship building
-    - modify postgres resource to work with dagster resources
-    - create log for loading data
+        + maak alles goed per asset
+            - (klaar) name_basics
+            - (klaar) primary_profession
+            - (nog testen) title_basics
+            - (pauze) name_known_for_titles (werkt pas als title basics werkt)
+
+        + maak de eind assets die de relaties bouwen af.
+        + stop het maken van realties in loaded, en maak de loaded assets van elkaar afhankelijk.
+        + in de loaded assets moet de relatie worden verwijderd. als de tabel leeg wordt gemaakt moet er een truncate+cascade+restart identity worden gedaan
+        + >>>>>alle files moeten tegelijkertijd worden gedownload, anders krijg je dependency problemen.<<<<
 2. modify database to have (sorted) partitions (for large (and medium) tables) (remember that i have less ram to work with on my server)
 5. create assets that create and remove relationships. every relationship will become it's own asset (but can be grouped a bit if possible)
 6. add movie watch list to dataabse (in a new schema) (update scripts)

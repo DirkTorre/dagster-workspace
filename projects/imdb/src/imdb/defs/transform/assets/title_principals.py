@@ -3,7 +3,7 @@ import polars as pl
 
 
 @dg.asset(
-    deps=["title_principals_raw"],
+    deps=["imdb_download", "title_basics_loaded", "name_basics_loaded"],
     description="Data for title_principals table",
     group_name="transform_and_load",
     required_resource_keys={
@@ -11,7 +11,7 @@ import polars as pl
         "postgres",
     },  # needed to use file_registry in the asset function
 )
-def title_principals(context: dg.AssetExecutionContext):
+def title_principals_loaded(context: dg.AssetExecutionContext):
     FileRegistry = context.resources.file_registry
     raw_data_path = FileRegistry.get_path("title_principals")
     context.log.info(f"Reading raw data from {raw_data_path}")
@@ -42,7 +42,7 @@ def title_principals(context: dg.AssetExecutionContext):
     pr = context.resources.postgres
     context.log.info("Writing title_principals to imdb.title_principals")
     pr.load_polars_dataframe(
-        df=title_principals, table_name="title_principals", schema="imdb"
+        context, df=title_principals, table_name="title_principals", schema="imdb"
     )
 
     return dg.MaterializeResult(

@@ -4,7 +4,7 @@ from .. import loaders
 
 
 @dg.asset(
-    deps=["title_crew_raw"],
+    deps=["imdb_download", "title_basics_loaded", "name_basics_loaded"],
     description="Data for directors table",
     group_name="transform_and_load",
     required_resource_keys={
@@ -27,10 +27,54 @@ def title_directors_loaded(context: dg.AssetExecutionContext):
         .drop_nulls("nconst")
     )
 
-    pr = context.resources.postgres
-    context.log.info("Writing title_directors to imdb.title_directors")
-    pr.load_polars_dataframe(
-        df=title_directors, table_name="title_directors", schema="imdb"
+    pre_load_message = "Removing relations of imdb.title_directors."
+    pre_load_query = """
+        ALTER TABLE IF EXISTS imdb.title_genres
+        DROP CONSTRAINT IF EXISTS title_genres_tconst_fkey;
+        """
+
+    post_load_message = """
+        Removing tconst mismatches from imdb.title_directors.
+        Removing nconst mismatches from imdb.title_directors.
+        Adding imdb.name_basics (nconst) constraint to imdb.title_directors.
+        Adding imdb.title_basics (tconst) constraint to imdb.title_directors.
+        """
+
+    post_load_query = """
+        DELETE FROM imdb.title_directors
+        WHERE tconst IN (
+            SELECT tconst FROM imdb.title_directors
+            EXCEPT
+            SELECT tconst FROM imdb.title_basics);
+        
+        DELETE FROM imdb.title_directors
+        WHERE nconst IN (
+            SELECT nconst FROM imdb.title_directors
+            except
+            SELECT nconst FROM imdb.name_basics);
+
+        ALTER TABLE IF EXISTS imdb.title_directors
+        ADD CONSTRAINT title_directors_fk_nconst FOREIGN KEY (nconst)
+        REFERENCES imdb.name_basics (nconst) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION;
+
+        ALTER TABLE IF EXISTS imdb.title_directors
+        ADD CONSTRAINT title_directors_fk_tconst FOREIGN KEY (tconst)
+        REFERENCES imdb.title_basics (tconst) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION;
+        """
+
+    loaders.reload_table_with_fk(
+        context=context,
+        df=title_directors,
+        table="title_directors",
+        schema="imdb",
+        pre_load_message=pre_load_message,
+        pre_load_query=pre_load_query,
+        post_load_message=post_load_message,
+        post_load_query=post_load_query,
     )
 
     return dg.MaterializeResult(
