@@ -1,5 +1,6 @@
 import dagster as dg
 import polars as pl
+from .. import loaders
 
 
 @dg.asset(
@@ -37,13 +38,40 @@ def title_akas_loaded(context: dg.AssetExecutionContext):
 
     title_akas = title_akas.with_columns(
         pl.col("isOriginalTitle").cast(pl.Boolean)
-    ).rename({"titleId": "title_id", "isOriginalTitle": "is_original_title"})
+    ).rename({"titleId": "tconst", "isOriginalTitle": "is_original_title"})
 
-    pr = context.resources.postgres
+    pre_load_message = "Removing relations of imdb.title_akas."
+    pre_load_query = """ ALTER TABLE imdb.title_akas
+        DROP CONSTRAINT IF EXISTS title_akas_tconst_fkey;"""
 
-    context.log.info(f"Writing title_akas to imdb.title_akas")
-    pr.load_polars_dataframe(
-        context, df=title_akas, table_name="title_akas", schema="imdb"
+    post_load_message = "Removing tconst mismatches from imdb.title_akas."
+
+    post_load_query = """
+        DELETE FROM imdb.title_akas
+        WHERE tconst IN (
+            SELECT tconst
+            FROM imdb.title_akas
+            EXCEPT
+            SELECT tconst
+            FROM imdb.title_basics
+        );
+
+        ALTER TABLE IF EXISTS imdb.title_akas
+        ADD CONSTRAINT title_akas_tconst_fkey FOREIGN KEY (tconst)
+        REFERENCES imdb.title_basics (tconst) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION;
+        """
+
+    loaders.reload_table_with_fk(
+        context=context,
+        df=title_akas,
+        table="title_akas",
+        schema="imdb",
+        pre_load_message=pre_load_message,
+        pre_load_query=pre_load_query,
+        post_load_message=post_load_message,
+        post_load_query=post_load_query,
     )
 
     return dg.MaterializeResult(

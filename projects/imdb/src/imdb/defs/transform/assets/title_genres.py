@@ -55,43 +55,6 @@ def title_genres_loaded(context: dg.AssetExecutionContext):
         post_load_query=post_load_query,
     )
     
-    
-    
-    
-    
-    
-    
-    
-    # pr = context.resources.postgres
-
-    # context.log.info("removing relations of imdb.title_ratings")
-    # pr.execute_query(
-    #     context,
-    #     """
-    #     ALTER TABLE IF EXISTS imdb.title_genres
-    #     DROP CONSTRAINT IF EXISTS title_genres_tconst_fkey;
-    #     """,
-    # )
-
-    # context.log.info("Writing title_ratings to imdb.title_genres")
-    # pr.load_polars_dataframe(
-    #     context, df=title_genres, table_name="title_genres", schema="imdb"
-    # )
-
-    # context.log.info(
-    #     "Adding imdb.title_basics (tconst) constraint to imdb.title_genres"
-    # )
-
-    # pr.execute_query(
-    #     context,
-    #     """
-    #     ALTER TABLE IF EXISTS imdb.title_genres
-    #     ADD CONSTRAINT title_genres_tconst_fkey FOREIGN KEY (tconst)
-    #     REFERENCES imdb.title_basics (tconst) MATCH SIMPLE
-    #     ON UPDATE NO ACTION
-    #     ON DELETE CASCADE;
-    #     """,
-    # )
 
     return dg.MaterializeResult(
         # TODO: schema

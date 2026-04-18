@@ -39,7 +39,7 @@ def name_basics_loaded(context: dg.AssetExecutionContext):
         ALTER TABLE imdb.name_basics DROP CONSTRAINT IF EXISTS title_directors_fk_nconst;
         ALTER TABLE imdb.name_basics DROP CONSTRAINT IF EXISTS title_principals_fk_nconst;
         ALTER TABLE imdb.name_basics DROP CONSTRAINT IF EXISTS title_writers_fk_nconst;
-        """
+        """,
     )
 
     context.log.info("Writing name_basics to imdb.name_basics")

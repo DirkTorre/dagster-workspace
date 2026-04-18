@@ -41,8 +41,9 @@ def title_ratings_loaded(context: dg.AssetExecutionContext):
         DROP CONSTRAINT IF EXISTS title_ratings_fk;
         """
 
-    post_load_message = \
+    post_load_message = (
         "Adding imdb.title_basics (tconst) constraint to imdb.title_ratings"
+    )
 
     post_load_query = """
         ALTER TABLE IF EXISTS imdb.title_ratings

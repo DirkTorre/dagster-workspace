@@ -25,21 +25,38 @@ def name_primary_profession_loaded(context: dg.AssetExecutionContext):
         .explode("primary_profession")
     )
 
-    pr = context.resources.postgres
-    context.log.info("removing relations for imdb.name_primary_profession")
-    pr.execute_query(
-        context,
-        """
-        ALTER TABLE imdb.name_basics DROP CONSTRAINT IF EXISTS name_primary_profession_nconst_fkey;
-        """
-    )
+    pre_load_message = "Removing relations of imdb.name_primary_profession."
+    pre_load_query = """ ALTER TABLE imdb.name_primary_profession
+        DROP CONSTRAINT IF EXISTS name_primary_profession_nconst_fkey;"""
 
-    context.log.info("Writing name_primary_profession to imdb.name_primary_profession")
-    pr.load_polars_dataframe(
-        context,
+    post_load_message = """Removing nconst mismatches from imdb.name_primary_profession.
+        """
+
+    post_load_query = """DELETE FROM imdb.name_primary_profession
+        WHERE nconst IN (
+            SELECT nconst
+            FROM imdb.name_primary_profession
+            EXCEPT
+            SELECT nconst
+            FROM imdb.name_basics
+        );
+
+        ALTER TABLE IF EXISTS imdb.name_primary_profession
+        ADD CONSTRAINT name_primary_profession_nconst_fkey FOREIGN KEY (nconst)
+        REFERENCES imdb.name_basics (nconst) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE CASCADE;
+        """
+
+    loaders.reload_table_with_fk(
+        context=context,
         df=name_primary_profession,
-        table_name="name_primary_profession",
+        table="name_primary_profession",
         schema="imdb",
+        pre_load_message=pre_load_message,
+        pre_load_query=pre_load_query,
+        post_load_message=post_load_message,
+        post_load_query=post_load_query,
     )
 
     return dg.MaterializeResult(

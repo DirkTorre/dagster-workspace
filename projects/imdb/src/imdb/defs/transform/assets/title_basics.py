@@ -34,7 +34,9 @@ def title_basics_loaded(context: dg.AssetExecutionContext):
     )
 
     pr = context.resources.postgres
-    context.log.info("removing relations for with a reference to tconst of imdb.title_basics")
+    context.log.info(
+        "removing relations for with a reference to tconst of imdb.title_basics"
+    )
     pr.execute_query(
         context,
         """
@@ -44,7 +46,7 @@ def title_basics_loaded(context: dg.AssetExecutionContext):
         ALTER TABLE imdb.title_principals DROP CONSTRAINT IF EXISTS title_principals_fk_tconst;
         ALTER TABLE imdb.title_ratings DROP CONSTRAINT IF EXISTS title_ratings_fk;
         ALTER TABLE imdb.title_writers DROP CONSTRAINT IF EXISTS title_writers_fk_tconst;
-        """
+        """,
     )
 
     context.log.info("Writing title_basics to imdb.title_basics")

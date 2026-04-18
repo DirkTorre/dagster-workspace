@@ -21,9 +21,7 @@ def load_title_basics_memory(raw_data_path: str) -> pl.DataFrame:
             "genres": pl.Utf8,
         },
     )
-    return title_basics.with_columns(
-        pl.col("isAdult").cast(pl.Boolean)
-    )
+    return title_basics.with_columns(pl.col("isAdult").cast(pl.Boolean))
 
 
 def load_name_basics_memory(raw_data_path: str) -> pl.DataFrame:

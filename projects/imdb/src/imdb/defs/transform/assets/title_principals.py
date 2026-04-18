@@ -1,5 +1,6 @@
 import dagster as dg
 import polars as pl
+from .. import loaders
 
 
 @dg.asset(
@@ -39,10 +40,53 @@ def title_principals_loaded(context: dg.AssetExecutionContext):
         pl.col("characters").str.replace_all(r'[\[\]"]', "")
     )
 
-    pr = context.resources.postgres
-    context.log.info("Writing title_principals to imdb.title_principals")
-    pr.load_polars_dataframe(
-        context, df=title_principals, table_name="title_principals", schema="imdb"
+    pre_load_message = "Removing relations of imdb.title_principals."
+    pre_load_query = """ ALTER TABLE imdb.title_principals
+        DROP CONSTRAINT IF EXISTS title_principals_fk;"""
+
+    post_load_message = """Removing tconst mismatches from imdb.title_principals.
+        Adding imdb.title_basics (tconst) constraint to imdb.title_principals."""
+
+    post_load_query = """DELETE FROM imdb.title_principals
+        WHERE tconst IN (
+            SELECT tconst
+            FROM imdb.title_principals
+            EXCEPT
+            SELECT tconst
+            FROM imdb.title_basics
+        );
+
+        DELETE FROM imdb.title_principals
+        WHERE nconst IN (
+            SELECT nconst
+            FROM imdb.title_principals
+            EXCEPT
+            SELECT nconst
+            FROM imdb.name_basics
+        );
+
+        ALTER TABLE IF EXISTS imdb.title_principals
+        ADD CONSTRAINT title_principals_fk_tconst FOREIGN KEY (tconst)
+        REFERENCES imdb.title_basics (tconst) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE CASCADE;
+
+        ALTER TABLE IF EXISTS imdb.title_principals
+        ADD CONSTRAINT title_principals_fk_nconst FOREIGN KEY (nconst)
+        REFERENCES imdb.name_basics (nconst) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE CASCADE;
+        """
+
+    loaders.reload_table_with_fk(
+        context=context,
+        df=title_principals,
+        table="title_principals",
+        schema="imdb",
+        pre_load_message=pre_load_message,
+        pre_load_query=pre_load_query,
+        post_load_message=post_load_message,
+        post_load_query=post_load_query,
     )
 
     return dg.MaterializeResult(

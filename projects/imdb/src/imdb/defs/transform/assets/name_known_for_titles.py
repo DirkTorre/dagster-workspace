@@ -27,21 +27,53 @@ def name_known_for_titles_loaded(context: dg.AssetExecutionContext):
         .drop_nulls("tconst")
     )
 
-    pr = context.resources.postgres
-    context.log.info("removing relations for imdb.name_primary_profession")
-    pr.execute_query(
-        context,
-        """
-        ALTER TABLE imdb.name_known_for_titles DROP CONSTRAINT IF EXISTS name_known_for_titles_fk;
-        """
-    )
+    pre_load_message = "Removing relations of imdb.name_known_for_titles."
+    pre_load_query = """ ALTER TABLE imdb.name_known_for_titles
+        DROP CONSTRAINT IF EXISTS name_known_for_titles_fk;"""
 
-    context.log.info("Writing name_known_for_titles to imdb.name_known_for_titles")
-    pr.load_polars_dataframe(
-        context,
+    post_load_message = """Removing tconst mismatches from imdb.name_known_for_titles.
+        Adding imdb.title_basics (tconst) constraint to imdb.name_known_for_titles."""
+
+    post_load_query = """DELETE FROM imdb.name_known_for_titles
+        WHERE tconst IN (
+            SELECT tconst
+            FROM imdb.name_known_for_titles
+            EXCEPT
+            SELECT tconst
+            FROM imdb.title_basics
+        );
+
+        DELETE FROM imdb.name_known_for_titles
+        WHERE tconst IN (
+            SELECT nconst
+            FROM imdb.name_known_for_titles
+            EXCEPT
+            SELECT nconst
+            FROM imdb.name_basics
+        );
+
+        ALTER TABLE IF EXISTS imdb.name_known_for_titles
+        ADD CONSTRAINT name_known_for_titles_fk_tconst FOREIGN KEY (tconst)
+        REFERENCES imdb.title_basics (tconst) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE CASCADE;
+
+        ALTER TABLE IF EXISTS imdb.name_known_for_titles
+        ADD CONSTRAINT name_known_for_titles_fk_nconst FOREIGN KEY (nconst)
+        REFERENCES imdb.name_basics (nconst) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE CASCADE;
+        """
+
+    loaders.reload_table_with_fk(
+        context=context,
         df=name_known_for_titles,
-        table_name="name_known_for_titles",
+        table="name_known_for_titles",
         schema="imdb",
+        pre_load_message=pre_load_message,
+        pre_load_query=pre_load_query,
+        post_load_message=post_load_message,
+        post_load_query=post_load_query,
     )
 
     return dg.MaterializeResult(
