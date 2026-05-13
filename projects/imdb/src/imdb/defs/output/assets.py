@@ -116,6 +116,88 @@ def movie_list(context: dg.AssetExecutionContext):
         GROUP BY WS.TCONST;
     """
 
+    unwatched_last_5_years_query = """
+        WITH
+            AGGREGATED_GENRES AS (
+                SELECT
+                    WS.TCONST,
+                    ARRAY_AGG(GENRE) AS GENRES
+                FROM
+                    IMDB.WATCH_STATUS AS WS
+                    JOIN IMDB.TITLE_GENRES AS G ON WS.TCONST = G.TCONST
+                GROUP BY
+                    WS.TCONST
+            )
+        SELECT
+            WS.TCONST,
+            PRIORITY,
+            AVERAGE_RATING,
+            NUM_VOTES,
+            PRIMARY_TITLE,
+            START_YEAR,
+            TITLE_TYPE,
+            GENRES
+        FROM
+            IMDB.WATCH_STATUS AS WS
+            JOIN IMDB.TITLE_BASICS AS TB ON WS.TCONST = TB.TCONST
+            JOIN IMDB.TITLE_RATINGS AS TR ON TB.TCONST = TR.TCONST
+            JOIN AGGREGATED_GENRES AS AG ON TB.TCONST = AG.TCONST
+        WHERE
+            WS.WATCHED = FALSE
+            AND (
+                EXTRACT(
+                    YEAR
+                    FROM
+                        CURRENT_DATE
+                ) - TB.START_YEAR
+            ) < 5
+        ORDER BY
+            PRIORITY DESC,
+            AVERAGE_RATING DESC;
+    """
+
+    top_10_per_genre_unwatched_query = """
+                WITH
+            RANKED AS (
+                SELECT
+                    WS.TCONST,
+                    TR.AVERAGE_RATING,
+                    TR.NUM_VOTES,
+                    TB.PRIMARY_TITLE,
+                    TB.START_YEAR,
+                    TB.TITLE_TYPE,
+                    TG.GENRE,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY
+                            TG.GENRE
+                        ORDER BY
+                            TR.AVERAGE_RATING DESC,
+                            TR.NUM_VOTES DESC
+                    ) AS RN
+                FROM
+                    IMDB.WATCH_STATUS AS WS
+                    JOIN IMDB.TITLE_BASICS AS TB ON WS.TCONST = TB.TCONST
+                    JOIN IMDB.TITLE_RATINGS AS TR ON TB.TCONST = TR.TCONST
+                    JOIN IMDB.TITLE_GENRES AS TG ON TB.TCONST = TG.TCONST
+                WHERE
+                    WS.WATCHED = FALSE
+            )
+        SELECT
+            GENRE,
+            AVERAGE_RATING,
+            NUM_VOTES,
+            PRIMARY_TITLE,
+            START_YEAR,
+            TCONST
+        FROM
+            RANKED
+        WHERE
+            RN <= 10
+        ORDER BY
+            GENRE,
+            RN;
+    """
+
     movie_list = pr.get_query_results(
         context,
         movie_list_query,
@@ -134,6 +216,16 @@ def movie_list(context: dg.AssetExecutionContext):
     watch_status_no_date = pr.get_query_results(
         context,
         watch_status_no_date_query,
+    )
+
+    unwatched_last_5_years = pr.get_query_results(
+        context,
+        unwatched_last_5_years_query,
+    )
+
+    top_10_per_genre_unwatched = pr.get_query_results(
+        context,
+        top_10_per_genre_unwatched_query,
     )
 
     directors = pr.get_query_results(context, directors_query)
@@ -158,12 +250,13 @@ def movie_list(context: dg.AssetExecutionContext):
     with Workbook(movie_list_path) as wb:
         ws_ml = wb.add_worksheet("Movie List")
         ws_wsd = wb.add_worksheet("Watch Status with Dates")
+        ws_p5y = wb.add_worksheet("Uwatched Movies of Past 5 Years")
+        ws_ut10 = wb.add_worksheet("Unwatched Top 10 per Genre")
 
-        movie_list.write_excel(
-            workbook=wb,
-            worksheet=ws_ml,
-        )
+        movie_list.write_excel(workbook=wb, worksheet=ws_ml)
         watch_status.write_excel(workbook=wb, worksheet=ws_wsd)
+        unwatched_last_5_years.write_excel(workbook=wb, worksheet=ws_p5y)
+        top_10_per_genre_unwatched.write_excel(workbook=wb, worksheet=ws_ut10)
 
     # stats
     counts = movie_list.select(pl.col("watched").value_counts()).unnest("watched")
