@@ -97,3 +97,12 @@ def imdb_download(context: dg.AssetExecutionContext):
             "files": download_results,
         }
     )
+
+
+# @dg.asset(
+#     name="watch_status",
+#     description="get the watch_status_file",
+#     group_name="ingestion",  # You might want to adjust this group name
+#     automation_condition=dg.AutomationCondition.on_cron("@daily"),
+# )
+# def watch_status(context: dg.AssetExecutionContext):

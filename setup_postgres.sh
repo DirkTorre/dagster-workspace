@@ -92,5 +92,11 @@ END
 \""
 
 
+
+# psql -h localhost -U dagster -d dagster -c "\copy imdb.watch_status FROM '/media/user/Data/dirkv/Code/dagster/imdb_dagster/data/inputs/handmade_files/status_semicolumn.csv' with (format csv,header true, delimiter ';');"
+
 # deletes env vars
 set +a
+
+
+

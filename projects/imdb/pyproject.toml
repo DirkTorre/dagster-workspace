@@ -12,6 +12,7 @@ dependencies = [
     "psycopg2>=2.9.11",
     "psycopg2-binary>=2.9.11",
     "pydantic>=2.12.5",
+    "xlsxwriter>=3.2.9",
 ]
 
 [dependency-groups]
@@ -19,6 +20,7 @@ dev = [
     "dagster-webserver",
     "dagster-dg-cli",
     "ipykernel>=7.2.0",
+    "connectorx>=0.4.5",
 ]
 
 [build-system]

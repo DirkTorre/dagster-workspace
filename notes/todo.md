@@ -1,31 +1,14 @@
 # planning
-1. make scripts work with new database
-    - (done) create database connection class with methods
-    - (done) add the new database connection to dagster
-    - (done) implement the new class to load data
-    - (done) modify postgres resource to work with dagster resources
-    - (done) create log for loading data
-    - create assets for relationship building
-        + maak alles goed per asset
-            - (klaar) name_basics
-            - (klaar) primary_profession
-            - (nog testen) title_basics
-            - (pauze) name_known_for_titles (werkt pas als title basics werkt)
-
-        + maak de eind assets die de relaties bouwen af.
-        + stop het maken van realties in loaded, en maak de loaded assets van elkaar afhankelijk.
-        + in de loaded assets moet de relatie worden verwijderd. als de tabel leeg wordt gemaakt moet er een truncate+cascade+restart identity worden gedaan
-        + >>>>>alle files moeten tegelijkertijd worden gedownload, anders krijg je dependency problemen.<<<<
-2. modify database to have (sorted) partitions (for large (and medium) tables) (remember that i have less ram to work with on my server)
-5. create assets that create and remove relationships. every relationship will become it's own asset (but can be grouped a bit if possible)
-6. add movie watch list to dataabse (in a new schema) (update scripts)
-7. create automatic loading of onedrive data in dataabse
-8. automate everything daily
-9. use dbt to creatre data for excel file and figures
-10. create excel file and automatically load to onedrive
-11. create dashboard with usefull figures and automatically load to onedrive
-12. get everything working on server
-13. add jenkins cicd
+1. (done) make scripts work with new database
+2. add movie watch list to databse
+    - create auto table dump and table load script
+3. create automatic loading of onedrive data in dataabse
+4. automate everything daily
+5. use dbt to creatre data for excel file and figures
+6. create excel file and automatically load to onedrive
+7. create dashboard with usefull figures and automatically load to onedrive
+8. get everything working on server
+9. add jenkins cicd
 
 
 

@@ -173,6 +173,29 @@ CREATE TABLE
         CONSTRAINT title_ratings_pk PRIMARY KEY (tconst)
     );
 
+
+-- my personal data
+CREATE TABLE
+    IF NOT EXISTS imdb.watch_status (
+        tconst varchar(11) NOT NULL,
+        watched boolean NOT NULL DEFAULT FALSE,
+        priority boolean NOT NULL,
+        netflix boolean,
+        prime boolean,
+        CONSTRAINT watch_status_pk PRIMARY KEY (tconst),
+        -- CONSTRAINT watch_status_fk FOREIGN KEY (tconst) REFERENCES imdb.title_basics(tconst)
+    );
+
+CREATE TABLE
+    IF NOT EXISTS imdb.watch_date_scores (
+        tconst varchar(11) NOT NULL,
+        date date,
+        enjoyment_score numeric(2, 1),
+        quality_score numeric(2, 1),
+        CONSTRAINT watch_date_scores_fk FOREIGN KEY (tconst) REFERENCES imdb.watch_status(tconst)
+    );
+
+
 -- -- partitions
 -- CREATE TABLE
 --     imdb.title_basics_movie PARTITION OF imdb.title_basics FOR
