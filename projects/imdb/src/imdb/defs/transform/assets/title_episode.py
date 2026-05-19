@@ -42,7 +42,10 @@ def title_episode_loaded(context: dg.AssetExecutionContext):
 
     pre_load_message = "Removing relations of imdb.title_episode."
     pre_load_query = """ ALTER TABLE imdb.title_episode
-        DROP CONSTRAINT IF EXISTS title_episode_fk;"""
+        DROP CONSTRAINT IF EXISTS title_episode_fk_tconst;
+        ALTER TABLE imdb.title_episode
+        DROP CONSTRAINT IF EXISTS title_episode_fk_parent_tconst;
+        """
 
     post_load_message = """Removing tconst mismatches from imdb.title_episode.
         Adding imdb.title_basics (tconst) constraint (2x) to imdb.title_episode."""

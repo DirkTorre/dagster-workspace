@@ -1,14 +1,14 @@
-from datetime import datetime
-
 import dagster as dg
-import requests
-import subprocess
 from pathlib import Path
 import polars as pl
 from xlsxwriter import Workbook
-from pathlib import Path
-
-from imdb.defs.ingestion.file_configs import FileConfig, FILE_CONFIGS
+from bokeh.plotting import figure
+from bokeh.models import ColumnDataSource, LinearColorMapper, ColorBar, TapTool, OpenURL, HoverTool, CategoricalColorMapper
+from bokeh.palettes import Turbo10, Turbo256
+import numpy as np
+from bokeh.io import output_file, save
+from sklearn.decomposition import PCA
+from sklearn.cluster import KMeans
 
 
 @dg.asset(
@@ -272,3 +272,496 @@ def movie_list(context: dg.AssetExecutionContext):
     return dg.MaterializeResult(
         metadata={"watched": watched, "unwatched": unwatched, "priority": priority},
     )
+
+
+# #  FOR GRAPH
+# WITH
+# 	DIRECTORS AS (
+# 		SELECT
+# 			WS.TCONST,
+# 			ARRAY_TO_STRING(ARRAY_AGG(NB.PRIMARY_NAME), ' - ') AS DIRECTORS
+# 		FROM
+# 			IMDB.WATCH_STATUS AS WS
+# 			LEFT JOIN IMDB.TITLE_DIRECTORS AS TD ON WS.TCONST = TD.TCONST
+# 			LEFT JOIN IMDB.NAME_BASICS AS NB ON TD.NCONST = NB.NCONST
+# 		GROUP BY
+# 			WS.TCONST
+# 	),
+# 	GENRES AS (
+# 		SELECT
+# 			WS.TCONST,
+# 			ARRAY_TO_STRING(ARRAY_AGG(TG.GENRE), ' - ') AS GENRES
+# 		FROM
+# 			IMDB.WATCH_STATUS AS WS
+# 			LEFT JOIN IMDB.TITLE_GENRES AS TG ON WS.TCONST = TG.TCONST
+# 		GROUP BY
+# 			WS.TCONST
+# 	)
+# SELECT
+# 	TG.GENRE,
+# 	TB.START_YEAR,
+# 	TR.AVERAGE_RATING,
+# 	TR.NUM_VOTES,
+# 	TB.PRIMARY_TITLE,
+# 	WS.TCONST,
+# 	WS.PRIORITY,
+# 	TB.TITLE_TYPE,
+# 	GENRES.GENRES,
+# 	DIRECTORS.DIRECTORS
+# FROM
+# 	IMDB.WATCH_STATUS AS WS
+# 	LEFT JOIN IMDB.TITLE_BASICS AS TB ON WS.TCONST = TB.TCONST
+# 	LEFT JOIN IMDB.TITLE_RATINGS AS TR ON TB.TCONST = TR.TCONST
+# 	LEFT JOIN IMDB.TITLE_GENRES AS TG ON TB.TCONST = TG.TCONST
+# 	LEFT JOIN GENRES ON TB.TCONST = GENRES.TCONST
+# 	LEFT JOIN DIRECTORS ON TB.TCONST = DIRECTORS.TCONST
+# WHERE
+# 	WS.WATCHED = FALSE
+# ORDER BY
+# 	START_YEAR;
+
+
+@dg.asset(
+    deps=[
+        "title_basics_loaded",
+        "title_ratings_loaded",
+        "title_genres_loaded",
+        "title_directors_loaded",
+        "name_basics_loaded",
+    ],
+    name="movie_graph",
+    description="Interactive bokeh plot of unwatched movies",
+    group_name="output",
+    # automation_condition=dg.AutomationCondition.on_cron("@daily"),
+    required_resource_keys={
+        "file_registry",
+        "postgres",
+    },
+)
+def movie_graph(context: dg.AssetExecutionContext):
+    query = """
+                WITH
+            DIRECTORS AS (
+                SELECT
+                    WS.TCONST,
+                    ARRAY_TO_STRING(ARRAY_AGG(NB.PRIMARY_NAME), ' - ') AS DIRECTORS
+                FROM
+                    IMDB.WATCH_STATUS AS WS
+                    LEFT JOIN IMDB.TITLE_DIRECTORS AS TD ON WS.TCONST = TD.TCONST
+                    LEFT JOIN IMDB.NAME_BASICS AS NB ON TD.NCONST = NB.NCONST
+                GROUP BY
+                    WS.TCONST
+            ),
+            GENRES AS (
+                SELECT
+                    WS.TCONST,
+                    ARRAY_TO_STRING(ARRAY_AGG(TG.GENRE), ' - ') AS GENRES
+                FROM
+                    IMDB.WATCH_STATUS AS WS
+                    LEFT JOIN IMDB.TITLE_GENRES AS TG ON WS.TCONST = TG.TCONST
+                GROUP BY
+                    WS.TCONST
+            )
+        SELECT
+            TG.GENRE,
+            TB.START_YEAR,
+            TR.AVERAGE_RATING,
+            TR.NUM_VOTES,
+            TB.PRIMARY_TITLE,
+            WS.TCONST,
+            WS.PRIORITY,
+            TB.TITLE_TYPE,
+            GENRES.GENRES,
+            DIRECTORS.DIRECTORS
+        FROM
+            IMDB.WATCH_STATUS AS WS
+            LEFT JOIN IMDB.TITLE_BASICS AS TB ON WS.TCONST = TB.TCONST
+            LEFT JOIN IMDB.TITLE_RATINGS AS TR ON TB.TCONST = TR.TCONST
+            LEFT JOIN IMDB.TITLE_GENRES AS TG ON TB.TCONST = TG.TCONST
+            LEFT JOIN GENRES ON TB.TCONST = GENRES.TCONST
+            LEFT JOIN DIRECTORS ON TB.TCONST = DIRECTORS.TCONST
+        WHERE
+            WS.WATCHED = FALSE
+        ORDER BY
+            START_YEAR;
+    """
+
+    pr = context.resources.postgres
+
+    data = pr.get_query_results(
+        context,
+        query,
+    )
+
+    movies = data.filter(
+        pl.col("start_year").is_not_null(), pl.col("genre").is_not_null()
+    )
+    movies = movies.with_columns(
+        pl.col("average_rating").cast(pl.Float64),
+        ("https://www.imdb.com/title/" + pl.col("tconst") + "/").alias("url"),
+    )
+
+    # Scale num_votes to 0–10
+    movies = movies.with_columns(
+        (
+            (pl.col("num_votes") - pl.col("num_votes").min())
+            / (pl.col("num_votes").max() - pl.col("num_votes").min())
+            * 1.5
+            + 1.2
+        ).alias("votes_scaled"),
+        (np.log(pl.col("start_year")) * 3000).alias("year_log"),
+    )
+
+    source = ColumnDataSource(movies)
+
+    color_mapper = LinearColorMapper(
+        palette=Turbo10,
+        low=movies["average_rating"].min(),
+        high=movies["average_rating"].max(),
+    )
+
+    genres = movies["genre"].unique().sort(descending=True).to_list()
+    unique_years = sorted(movies["start_year"].unique())
+    decade_years = [y for y in unique_years if y % 10 == 0]
+    tooltips = [
+        ("Title", "@primary_title"),
+        ("Year", "@start_year"),
+        ("Selected genre", "@genre"),
+        ("Directors", "@directors"),
+        ("Genres", "@genres"),
+        ("Average Rating", "@average_rating"),
+        ("# votes", "@num_votes"),
+    ]
+
+    p = figure(
+        height=400,
+        width=1000,
+        y_range=genres,
+        tooltips=tooltips,
+        tools="tap, box_zoom, wheel_zoom, reset, pan, hover, save"
+    )
+    p.circle(
+        x="year_log",
+        y="genre",
+        radius="votes_scaled",
+        alpha=0.5,
+        color={"field": "average_rating", "transform": color_mapper},
+        source=source,
+    )
+    p.select_one(TapTool).callback = OpenURL(url="@url")
+    color_bar = ColorBar(color_mapper=color_mapper, label_standoff=12)
+    tick_positions = {np.log(y) * 3000: str(y) for y in decade_years}
+    p.xaxis.ticker = list(tick_positions.keys())
+    p.xaxis.major_label_overrides = tick_positions
+
+    p.add_layout(color_bar, "right")
+
+    output_dir = Path("data/imdb/outputs")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    movie_graph_path = output_dir / "movie_graph.html"
+
+    output_file(movie_graph_path)
+    save(p)
+
+
+@dg.asset(
+    deps=[
+        "title_principals_loaded",
+        "title_basics_loaded",
+        "title_ratings_loaded",
+        "title_genres_loaded",
+        "title_directors_loaded",
+        "title_writers_loaded",
+        "name_basics_loaded",
+    ],
+    name="movie_cluster_graph",
+    description="Interactive bokeh plot of unwatched movies",
+    group_name="output",
+    # automation_condition=dg.AutomationCondition.on_cron("@daily"),
+    required_resource_keys={
+        "file_registry",
+        "postgres",
+    },
+)
+def movie_cluster_graph(context: dg.AssetExecutionContext):
+    ml_query = """
+        WITH unwatched AS (
+            SELECT tconst
+            FROM imdb.watch_status
+            WHERE watched = FALSE
+        ),
+
+        -- Pull all principals in one go
+        principals AS (
+            SELECT
+                uw.tconst,
+                tp.nconst,
+                tp.category
+            FROM unwatched uw
+            LEFT JOIN imdb.title_principals tp
+                ON uw.tconst = tp.tconst
+        ),
+
+        -- Extract role‑specific subsets
+        actors AS (
+            SELECT tconst, nconst AS actor
+            FROM principals
+            WHERE category IN ('actor', 'actress')
+        ),
+
+        producers AS (
+            SELECT tconst, nconst AS producer
+            FROM principals
+            WHERE category = 'producer'
+        ),
+
+        composers AS (
+            SELECT tconst, nconst AS composer
+            FROM principals
+            WHERE category = 'composer'
+        ),
+
+        cinematographers AS (
+            SELECT tconst, nconst AS cinematographer
+            FROM principals
+            WHERE category = 'cinematographer'
+        ),
+
+        -- Directors and writers come from their own tables
+        directors AS (
+            SELECT uw.tconst, td.nconst AS director
+            FROM unwatched uw
+            LEFT JOIN imdb.title_directors td
+                ON uw.tconst = td.tconst
+        ),
+
+        writers AS (
+            SELECT uw.tconst, tw.nconst AS writer
+            FROM unwatched uw
+            LEFT JOIN imdb.title_writers tw
+                ON uw.tconst = tw.tconst
+        ),
+
+        genres AS (
+            SELECT uw.tconst, tg.genre
+            FROM unwatched uw
+            LEFT JOIN imdb.title_genres tg
+                ON uw.tconst = tg.tconst
+        ),
+
+        basics AS (
+            SELECT uw.tconst, tb.start_year
+            FROM unwatched uw
+            LEFT JOIN imdb.title_basics tb
+                ON uw.tconst = tb.tconst
+        ),
+
+        ratings AS (
+            SELECT uw.tconst, tr.average_rating, tr.num_votes
+            FROM unwatched uw
+            LEFT JOIN imdb.title_ratings tr
+                ON uw.tconst = tr.tconst
+        )
+
+        SELECT
+            uw.tconst,
+            actor,
+            producer,
+            composer,
+            cinematographer,
+            director,
+            writer,
+            genre,
+            start_year,
+            average_rating,
+            num_votes
+        FROM unwatched uw
+        LEFT JOIN actors           ON uw.tconst = actors.tconst
+        LEFT JOIN producers        ON uw.tconst = producers.tconst
+        LEFT JOIN composers        ON uw.tconst = composers.tconst
+        LEFT JOIN cinematographers ON uw.tconst = cinematographers.tconst
+        LEFT JOIN directors        ON uw.tconst = directors.tconst
+        LEFT JOIN writers          ON uw.tconst = writers.tconst
+        LEFT JOIN genres           ON uw.tconst = genres.tconst
+        LEFT JOIN basics           ON uw.tconst = basics.tconst
+        LEFT JOIN ratings          ON uw.tconst = ratings.tconst;
+    """
+
+    graph_query = """
+        WITH 
+            DIRECTORS AS (
+                SELECT
+                    WS.TCONST,
+                    ARRAY_TO_STRING(ARRAY_AGG(NB.PRIMARY_NAME), ' - ') AS DIRECTORS
+                FROM
+                    IMDB.WATCH_STATUS AS WS
+                    LEFT JOIN IMDB.TITLE_DIRECTORS AS TD ON WS.TCONST = TD.TCONST
+                    LEFT JOIN IMDB.NAME_BASICS AS NB ON TD.NCONST = NB.NCONST
+                GROUP BY
+                    WS.TCONST
+            ),
+            GENRES AS (
+                SELECT
+                    WS.TCONST,
+                    ARRAY_TO_STRING(ARRAY_AGG(TG.GENRE), ' - ') AS GENRES
+                FROM
+                    IMDB.WATCH_STATUS AS WS
+                    LEFT JOIN IMDB.TITLE_GENRES AS TG ON WS.TCONST = TG.TCONST
+                GROUP BY
+                    WS.TCONST
+            )
+        SELECT
+            WS.TCONST,
+            TB.START_YEAR,
+            TR.AVERAGE_RATING,
+            TR.NUM_VOTES,
+            TB.PRIMARY_TITLE,
+            WS.PRIORITY,
+            TB.TITLE_TYPE,
+            GENRES.GENRES,
+            DIRECTORS.DIRECTORS
+        FROM
+            IMDB.WATCH_STATUS AS WS
+            LEFT JOIN IMDB.TITLE_BASICS AS TB ON WS.TCONST = TB.TCONST
+            LEFT JOIN IMDB.TITLE_RATINGS AS TR ON TB.TCONST = TR.TCONST
+            LEFT JOIN GENRES ON TB.TCONST = GENRES.TCONST
+            LEFT JOIN DIRECTORS ON TB.TCONST = DIRECTORS.TCONST
+        WHERE
+            WS.WATCHED = FALSE
+        ORDER BY
+            START_YEAR;
+    """
+    pr = context.resources.postgres
+
+    graph_data = pr.get_query_results(
+        context,
+        graph_query,
+    )
+
+    ml_data = pr.get_query_results(
+        context,
+        ml_query,
+    )
+
+
+
+    # ---------------------------------------------------------
+    # 1. Load & clean data
+    # ---------------------------------------------------------
+    data = ml_data.drop_nulls().drop_nans()
+
+
+    # ---------------------------------------------------------
+    # 2. Helper: multi-hot encode any categorical column
+    # ---------------------------------------------------------
+    def multi_hot(df: pl.DataFrame, col: str) -> pl.DataFrame:
+        return (
+            df.select("tconst", pl.col(col).cast(pl.Categorical))
+            .unique()
+            .to_dummies(columns=[col])
+            .group_by("tconst")
+            .sum()
+        )
+
+
+    # ---------------------------------------------------------
+    # 3. Multi-hot encode all categorical features
+    # ---------------------------------------------------------
+    categorical_cols = [
+        "genre", "actor", "producer", "composer",
+        "cinematographer", "director", "writer"
+    ]
+
+    encoded = [
+        multi_hot(data, col)
+        for col in categorical_cols
+    ]
+
+    # Base ML table
+    ml_data = data.select("tconst").unique()
+
+    # Join all encoded tables
+    for enc in encoded:
+        ml_data = ml_data.join(enc, on="tconst", how="left")
+
+
+    labels = ml_data["tconst"]
+    X = ml_data.drop("tconst")
+
+
+    # ---------------------------------------------------------
+    # 4. PCA
+    # ---------------------------------------------------------
+    pca = PCA(n_components=2)
+    pcs = pca.fit_transform(X)
+
+    pcs_df = pl.DataFrame(pcs, schema=["pc1", "pc2"])
+    pca_result = pl.concat([labels.to_frame(), pcs_df], how="horizontal")
+
+
+    # ---------------------------------------------------------
+    # 5. Merge PCA back into movie info
+    # ---------------------------------------------------------
+    data = graph_data.join(pca_result, on="tconst", how="left")
+
+    data = data.drop_nulls().drop_nans()
+
+    # ---------------------------------------------------------
+    # 6. KMeans clustering
+    # ---------------------------------------------------------
+    kmeans = KMeans(n_clusters=30, random_state=42)
+    clusters = kmeans.fit_predict(data[["pc1", "pc2"]])
+
+    data = data.with_columns([
+        pl.Series("group", clusters).cast(pl.Utf8),
+        ("https://www.imdb.com/title/" + pl.col("tconst") + "/").alias("url"),
+        pl.col("average_rating").cast(pl.Float64),
+    
+    ])
+
+
+    # ---------------------------------------------------------
+    # 7. Bokeh visualization
+    # ---------------------------------------------------------
+    source = ColumnDataSource(data.to_dict(as_series=False))
+
+    groups = sorted(data["group"].unique())
+    groups = [str(g) for g in groups]
+    palette = [Turbo256[int(i)] for i in np.linspace(0, 255, len(groups))]
+    color_mapper = CategoricalColorMapper(factors=groups, palette=palette)
+
+    p = figure(
+        width=900,
+        height=600,
+        title="Movie PCA Explorer",
+        tools="tap,box_zoom,wheel_zoom,reset,pan,hover,save",
+    )
+
+    p.circle(
+        "pc1", "pc2",
+        size=20,
+        alpha=0.6,
+        color={"field": "group", "transform": color_mapper},
+        source=source,
+    )
+
+    hover = HoverTool(tooltips=[
+        ("Title", "@primary_title"),
+        ("Score", "@average_rating"),
+        ("Votes", "@num_votes"),
+        ("Year", "@start_year"),
+        ("Genres", "@genres"),
+        ("Directors", "@directors"),
+        ("IMDb", "@tconst"),
+    ])
+
+    p.add_tools(hover)
+    p.select_one(TapTool).callback = OpenURL(url="@url")
+
+    output_dir = Path("data/imdb/outputs")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    movie_graph_path = output_dir / "movie_cluster_graph.html"
+
+    output_file(movie_graph_path)
+    save(p)
+

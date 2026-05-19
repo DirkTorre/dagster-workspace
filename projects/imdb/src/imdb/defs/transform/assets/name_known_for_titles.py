@@ -29,7 +29,9 @@ def name_known_for_titles_loaded(context: dg.AssetExecutionContext):
 
     pre_load_message = "Removing relations of imdb.name_known_for_titles."
     pre_load_query = """ ALTER TABLE imdb.name_known_for_titles
-        DROP CONSTRAINT IF EXISTS name_known_for_titles_fk;"""
+        DROP CONSTRAINT IF EXISTS name_known_for_titles_fk_tconst;
+        ALTER TABLE imdb.name_known_for_titles
+        DROP CONSTRAINT IF EXISTS name_known_for_titles_fk_nconst"""
 
     post_load_message = """Removing tconst mismatches from imdb.name_known_for_titles.
         Adding imdb.title_basics (tconst) constraint to imdb.name_known_for_titles."""

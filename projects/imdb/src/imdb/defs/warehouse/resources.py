@@ -474,7 +474,7 @@ class PostgresResource(dg.ConfigurableResource):
                 cur.execute(query)
                 columns = [desc[0] for desc in cur.description]
                 data = cur.fetchall()
-                return pl.DataFrame(data, schema=columns)
+                return pl.DataFrame(data, schema=columns, infer_schema_length=3000)
         except Exception as e:
             context.log.info(f"Failed to execute query: {str(e)}")
             raise

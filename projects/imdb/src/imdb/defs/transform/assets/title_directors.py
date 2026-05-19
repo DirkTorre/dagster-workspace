@@ -29,8 +29,10 @@ def title_directors_loaded(context: dg.AssetExecutionContext):
 
     pre_load_message = "Removing relations of imdb.title_directors."
     pre_load_query = """
-        ALTER TABLE IF EXISTS imdb.title_genres
-        DROP CONSTRAINT IF EXISTS title_genres_tconst_fkey;
+        ALTER TABLE IF EXISTS imdb.title_directors
+        DROP CONSTRAINT IF EXISTS title_directors_fk_nconst;
+        ALTER TABLE IF EXISTS imdb.title_directors
+        DROP CONSTRAINT IF EXISTS title_directors_fk_tconst;
         """
 
     post_load_message = """

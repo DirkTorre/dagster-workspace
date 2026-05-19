@@ -1,14 +1,13 @@
 # planning
 1. (done) make scripts work with new database
-2. add movie watch list to databse
-    - create auto table dump and table load script
+2. (done) add movie watch list to databse
+    - (done) create auto table dump and table load script
+3. (in progres) add figures
 3. create automatic loading of onedrive data in dataabse
 4. automate everything daily
-5. use dbt to creatre data for excel file and figures
-6. create excel file and automatically load to onedrive
-7. create dashboard with usefull figures and automatically load to onedrive
-8. get everything working on server
-9. add jenkins cicd
+5. create excel file and automatically load to onedrive
+6. get everything working on server
+8. add jenkins cicd
 
 
 
