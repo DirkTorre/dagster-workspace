@@ -3,10 +3,11 @@
 2. (done) add movie watch list to databse
     - (done) create auto table dump and table load script
 3. (in progres) add figures
-3. create automatic loading of onedrive data in dataabse
-4. automate everything daily
-5. create excel file and automatically load to onedrive
-6. get everything working on server
+    - add author and writer to everything
+4. create automatic loading of onedrive data in dataabse
+5. automate everything daily
+6. create excel file and automatically load to onedrive
+7. get everything working on server
 8. add jenkins cicd
 
 
