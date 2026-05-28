@@ -1,3 +1,4 @@
+from datetime import datetime
 import dagster as dg
 from pathlib import Path
 import polars as pl
@@ -21,48 +22,74 @@ from bokeh.transform import linear_cmap
 
 
 BASIC_DATA = """
-        WITH 
-            DIRECTORS AS (
-                SELECT
-                    WS.TCONST,
-                    ARRAY_TO_STRING(ARRAY_AGG(NB.PRIMARY_NAME), ' - ') AS DIRECTORS
-                FROM
-                    IMDB.WATCH_STATUS AS WS
-                    LEFT JOIN IMDB.TITLE_DIRECTORS AS TD ON WS.TCONST = TD.TCONST
-                    LEFT JOIN IMDB.NAME_BASICS AS NB ON TD.NCONST = NB.NCONST
-                GROUP BY
-                    WS.TCONST
-            ),
-            GENRES AS (
-                SELECT
-                    WS.TCONST,
-                    ARRAY_TO_STRING(ARRAY_AGG(TG.GENRE), ' - ') AS GENRES
-                FROM
-                    IMDB.WATCH_STATUS AS WS
-                    LEFT JOIN IMDB.TITLE_GENRES AS TG ON WS.TCONST = TG.TCONST
-                GROUP BY
-                    WS.TCONST
-            )
-        SELECT
-            WS.TCONST,
-            TB.START_YEAR,
-            TR.AVERAGE_RATING,
-            TR.NUM_VOTES,
-            TB.PRIMARY_TITLE,
-            WS.PRIORITY,
-            TB.TITLE_TYPE,
-            GENRES.GENRES,
-            DIRECTORS.DIRECTORS
-        FROM
-            IMDB.WATCH_STATUS AS WS
-            LEFT JOIN IMDB.TITLE_BASICS AS TB ON WS.TCONST = TB.TCONST
-            LEFT JOIN IMDB.TITLE_RATINGS AS TR ON TB.TCONST = TR.TCONST
-            LEFT JOIN GENRES ON TB.TCONST = GENRES.TCONST
-            LEFT JOIN DIRECTORS ON TB.TCONST = DIRECTORS.TCONST
-        WHERE
-            WS.WATCHED = FALSE
-        ORDER BY
-            START_YEAR;
+    WITH 
+        DIRECTORS AS (
+            SELECT
+                WS.TCONST,
+                ARRAY_TO_STRING(ARRAY_AGG(NB.PRIMARY_NAME), ' - ') AS DIRECTORS
+            FROM
+                IMDB.WATCH_STATUS AS WS
+                LEFT JOIN IMDB.TITLE_DIRECTORS AS TD ON WS.TCONST = TD.TCONST
+                LEFT JOIN IMDB.NAME_BASICS AS NB ON TD.NCONST = NB.NCONST
+            GROUP BY
+                WS.TCONST
+        ),
+        WRITERS AS (
+            SELECT
+                WS.TCONST,
+                ARRAY_TO_STRING(ARRAY_AGG(NB.PRIMARY_NAME), ' - ') AS WRITERS
+            FROM
+                IMDB.WATCH_STATUS AS WS
+                LEFT JOIN IMDB.TITLE_WRITERS AS TD ON WS.TCONST = TD.TCONST
+                LEFT JOIN IMDB.NAME_BASICS AS NB ON TD.NCONST = NB.NCONST
+            GROUP BY
+                WS.TCONST
+        ),
+        ACTORS AS (
+            SELECT
+                WS.TCONST,
+                ARRAY_TO_STRING(ARRAY_AGG(NB.PRIMARY_NAME), ' - ') AS ACTORS
+            FROM
+                IMDB.WATCH_STATUS AS WS
+                LEFT JOIN IMDB.TITLE_PRINCIPALS AS TD ON WS.TCONST = TD.TCONST
+                LEFT JOIN IMDB.NAME_BASICS AS NB ON TD.NCONST = NB.NCONST
+                WHERE CATEGORY='actor' OR CATEGORY='actress'
+            GROUP BY WS.TCONST
+        ),
+        GENRES AS (
+            SELECT
+                WS.TCONST,
+                ARRAY_TO_STRING(ARRAY_AGG(TG.GENRE), ' - ') AS GENRES
+            FROM
+                IMDB.WATCH_STATUS AS WS
+                LEFT JOIN IMDB.TITLE_GENRES AS TG ON WS.TCONST = TG.TCONST
+            GROUP BY
+                WS.TCONST
+        )
+    SELECT
+        WS.TCONST,
+        TB.START_YEAR,
+        TR.AVERAGE_RATING,
+        TR.NUM_VOTES,
+        TB.PRIMARY_TITLE,
+        WS.PRIORITY,
+        TB.TITLE_TYPE,
+        GENRES.GENRES,
+        DIRECTORS.DIRECTORS,
+        WRITERS.WRITERS,
+        ACTORS.ACTORS
+    FROM
+        IMDB.WATCH_STATUS AS WS
+        LEFT JOIN IMDB.TITLE_BASICS AS TB ON WS.TCONST = TB.TCONST
+        LEFT JOIN IMDB.TITLE_RATINGS AS TR ON TB.TCONST = TR.TCONST
+        LEFT JOIN GENRES ON TB.TCONST = GENRES.TCONST
+        LEFT JOIN DIRECTORS ON TB.TCONST = DIRECTORS.TCONST
+        LEFT JOIN WRITERS ON TB.TCONST = WRITERS.TCONST
+        LEFT JOIN ACTORS ON TB.TCONST = ACTORS.TCONST
+    WHERE
+        WS.WATCHED = FALSE
+    ORDER BY
+        START_YEAR;
     """
 
 
@@ -90,27 +117,76 @@ def movie_list(context: dg.AssetExecutionContext):
     # pre_load_message = ""
     # context.log.info(pre_load_message)
 
-    movie_list_query = """
-        SELECT
-            WS.TCONST,
-            WS.WATCHED,
-            WS.PRIORITY,
-            WS.NETFLIX,
-            WS.PRIME,
-            TR.AVERAGE_RATING,
-            TR.NUM_VOTES,
-            TB.PRIMARY_TITLE,
-            TB.ORIGINAL_TITLE,
-            TB.START_YEAR,
-            TB.RUNTIME_MINUTES
-        FROM
-            IMDB.WATCH_STATUS AS WS
-            LEFT JOIN IMDB.TITLE_RATINGS AS TR ON WS.TCONST = TR.TCONST
-            LEFT JOIN IMDB.TITLE_BASICS AS TB ON WS.TCONST = TB.TCONST
-        ORDER BY
-            WATCHED,
-            PRIORITY DESC,
-            AVERAGE_RATING DESC;
+    movie_list_query = """ 
+    WITH DIRECTORS AS (
+            SELECT
+                WS.TCONST,
+                ARRAY_TO_STRING(ARRAY_AGG(NB.PRIMARY_NAME), ' - ') AS DIRECTORS
+            FROM
+                IMDB.WATCH_STATUS AS WS
+                LEFT JOIN IMDB.TITLE_DIRECTORS AS TD ON WS.TCONST = TD.TCONST
+                LEFT JOIN IMDB.NAME_BASICS AS NB ON TD.NCONST = NB.NCONST
+            GROUP BY
+                WS.TCONST
+        ),
+        WRITERS AS (
+            SELECT
+                WS.TCONST,
+                ARRAY_TO_STRING(ARRAY_AGG(NB.PRIMARY_NAME), ' - ') AS WRITERS
+            FROM
+                IMDB.WATCH_STATUS AS WS
+                LEFT JOIN IMDB.TITLE_WRITERS AS TD ON WS.TCONST = TD.TCONST
+                LEFT JOIN IMDB.NAME_BASICS AS NB ON TD.NCONST = NB.NCONST
+            GROUP BY
+                WS.TCONST
+        ),
+        ACTORS AS (
+            SELECT
+                WS.TCONST,
+                ARRAY_TO_STRING(ARRAY_AGG(NB.PRIMARY_NAME), ' - ') AS ACTORS
+            FROM
+                IMDB.WATCH_STATUS AS WS
+                LEFT JOIN IMDB.TITLE_PRINCIPALS AS TD ON WS.TCONST = TD.TCONST
+                LEFT JOIN IMDB.NAME_BASICS AS NB ON TD.NCONST = NB.NCONST
+                WHERE CATEGORY='actor' OR CATEGORY='actress'
+            GROUP BY WS.TCONST
+        ),
+        GENRES AS (
+            SELECT
+                WS.TCONST,
+                ARRAY_TO_STRING(ARRAY_AGG(TG.GENRE), ' - ') AS GENRES
+            FROM
+                IMDB.WATCH_STATUS AS WS
+                LEFT JOIN IMDB.TITLE_GENRES AS TG ON WS.TCONST = TG.TCONST
+            GROUP BY
+                WS.TCONST
+        )
+    SELECT
+        WS.TCONST,
+		WS.WATCHED,
+		WS.PRIORITY,
+		WS.NETFLIX,
+		WS.PRIME,
+        TR.AVERAGE_RATING,
+        TR.NUM_VOTES,
+        TB.PRIMARY_TITLE,
+		TB.ORIGINAL_TITLE,
+		TB.START_YEAR,
+		TB.RUNTIME_MINUTES,
+		DIRECTORS.DIRECTORS,
+        WRITERS.WRITERS,
+        ACTORS.ACTORS,
+		TB.TITLE_TYPE
+    FROM
+        IMDB.WATCH_STATUS AS WS
+        LEFT JOIN IMDB.TITLE_BASICS AS TB ON WS.TCONST = TB.TCONST
+        LEFT JOIN IMDB.TITLE_RATINGS AS TR ON TB.TCONST = TR.TCONST
+        LEFT JOIN GENRES ON TB.TCONST = GENRES.TCONST
+        LEFT JOIN DIRECTORS ON TB.TCONST = DIRECTORS.TCONST
+        LEFT JOIN WRITERS ON TB.TCONST = WRITERS.TCONST
+        LEFT JOIN ACTORS ON TB.TCONST = ACTORS.TCONST
+    ORDER BY
+        WS.WATCHED, WS.PRIORITY DESC, TR.AVERAGE_RATING DESC;
         """
 
     genre_query = """
@@ -156,19 +232,6 @@ def movie_list(context: dg.AssetExecutionContext):
             DATE IS NULL
         ORDER BY
             TB.START_YEAR DESC;
-    """
-
-    directors_query = """
-        SELECT
-            WS.TCONST,
-            ARRAY_AGG(NB.PRIMARY_NAME) AS DIRECTORS
-        FROM
-            IMDB.WATCH_STATUS AS WS
-            LEFT JOIN IMDB.TITLE_DIRECTORS AS TD 
-                ON WS.TCONST = TD.TCONST
-            LEFT JOIN IMDB.NAME_BASICS AS NB
-                ON TD.NCONST = NB.NCONST
-        GROUP BY WS.TCONST;
     """
 
     unwatched_last_5_years_query = """
@@ -273,26 +336,29 @@ def movie_list(context: dg.AssetExecutionContext):
         watch_status_no_date_query,
     )
 
-    unwatched_last_5_years = pr.get_query_results(
-        context,
-        unwatched_last_5_years_query,
-    )
+    # unwatched_last_5_years = pr.get_query_results(
+    #     context,
+    #     unwatched_last_5_years_query,
+    # )
 
     top_10_per_genre_unwatched = pr.get_query_results(
         context,
         top_10_per_genre_unwatched_query,
     )
 
-    directors = pr.get_query_results(context, directors_query)
+    # directors = pr.get_query_results(context, directors_query)
 
     genres = genres.with_columns(pl.lit(True).alias("has_genre")).pivot(
         values="has_genre", index="tconst", columns="genre"
     )
 
     movie_list = (
-        movie_list.join(directors, on="tconst", how="left")
-        .join(genres, on="tconst", how="left")
-        .sort(["watched", "priority", "average_rating"], descending=[False, True, True])
+        movie_list.join(genres, on="tconst", how="left")
+        # .sort(["watched", "priority", "average_rating"], descending=[False, True, True])
+    )
+    current_year = datetime.today().year
+    unwatched_last_5_years = movie_list.filter(
+        (pl.col("start_year") > current_year - 5) & (~pl.col("watched"))
     )
     watch_status = pl.concat([watch_status_with_date, watch_status_no_date])
 
@@ -314,18 +380,23 @@ def movie_list(context: dg.AssetExecutionContext):
         top_10_per_genre_unwatched.write_excel(workbook=wb, worksheet=ws_ut10)
 
     # stats
-    counts = movie_list.select(pl.col("watched").value_counts()).unnest("watched")
-    watched = counts.filter(pl.col("watched") == "true")["count"].item()
-    unwatched = counts.filter(pl.col("watched") == "false")["count"].item()
-    priority = (
-        movie_list["priority"]
-        .value_counts()
-        .filter(pl.col("priority") == "true")["count"]
-        .item()
-    )
+    # counts = movie_list.select(pl.col("watched").value_counts()).unnest("watched")
+    
+    
+    priority = movie_list["priority"].value_counts().filter(pl.col("priority") == "true")["count"].item()
+    # watched = counts.filter(pl.col("watched") == "true")["count"].item()
+    # unwatched = counts.filter(pl.col("watched") == "false")["count"].item()
+    # priority = (
+    #     movie_list["priority"]
+    #     .value_counts()
+    #     .filter(pl.col("priority") == "true")["count"]
+    #     .item()
+    # )
 
     return dg.MaterializeResult(
-        metadata={"watched": watched, "unwatched": unwatched, "priority": priority},
+        metadata={"priority": priority},
+        # metadata={"watched": watched, "unwatched": unwatched, "priority": priority},
+        # metadata={"watched": watched, "unwatched": unwatched},
     )
 
 
@@ -348,28 +419,49 @@ def movie_list(context: dg.AssetExecutionContext):
 )
 def movie_graph(context: dg.AssetExecutionContext):
     query = """
-                WITH
-            DIRECTORS AS (
-                SELECT
-                    WS.TCONST,
-                    ARRAY_TO_STRING(ARRAY_AGG(NB.PRIMARY_NAME), ' - ') AS DIRECTORS
-                FROM
-                    IMDB.WATCH_STATUS AS WS
-                    LEFT JOIN IMDB.TITLE_DIRECTORS AS TD ON WS.TCONST = TD.TCONST
-                    LEFT JOIN IMDB.NAME_BASICS AS NB ON TD.NCONST = NB.NCONST
-                GROUP BY
-                    WS.TCONST
-            ),
-            GENRES AS (
-                SELECT
-                    WS.TCONST,
-                    ARRAY_TO_STRING(ARRAY_AGG(TG.GENRE), ' - ') AS GENRES
-                FROM
-                    IMDB.WATCH_STATUS AS WS
-                    LEFT JOIN IMDB.TITLE_GENRES AS TG ON WS.TCONST = TG.TCONST
-                GROUP BY
-                    WS.TCONST
-            )
+        WITH  DIRECTORS AS (
+            SELECT
+                WS.TCONST,
+                ARRAY_TO_STRING(ARRAY_AGG(NB.PRIMARY_NAME), ' - ') AS DIRECTORS
+            FROM
+                IMDB.WATCH_STATUS AS WS
+                LEFT JOIN IMDB.TITLE_DIRECTORS AS TD ON WS.TCONST = TD.TCONST
+                LEFT JOIN IMDB.NAME_BASICS AS NB ON TD.NCONST = NB.NCONST
+            GROUP BY
+                WS.TCONST
+        ),
+        WRITERS AS (
+            SELECT
+                WS.TCONST,
+                ARRAY_TO_STRING(ARRAY_AGG(NB.PRIMARY_NAME), ' - ') AS WRITERS
+            FROM
+                IMDB.WATCH_STATUS AS WS
+                LEFT JOIN IMDB.TITLE_WRITERS AS TD ON WS.TCONST = TD.TCONST
+                LEFT JOIN IMDB.NAME_BASICS AS NB ON TD.NCONST = NB.NCONST
+            GROUP BY
+                WS.TCONST
+        ),
+        ACTORS AS (
+            SELECT
+                WS.TCONST,
+                ARRAY_TO_STRING(ARRAY_AGG(NB.PRIMARY_NAME), ' - ') AS ACTORS
+            FROM
+                IMDB.WATCH_STATUS AS WS
+                LEFT JOIN IMDB.TITLE_PRINCIPALS AS TD ON WS.TCONST = TD.TCONST
+                LEFT JOIN IMDB.NAME_BASICS AS NB ON TD.NCONST = NB.NCONST
+                WHERE CATEGORY='actor' OR CATEGORY='actress'
+            GROUP BY WS.TCONST
+        ),
+        GENRES AS (
+            SELECT
+                WS.TCONST,
+                ARRAY_TO_STRING(ARRAY_AGG(TG.GENRE), ' - ') AS GENRES
+            FROM
+                IMDB.WATCH_STATUS AS WS
+                LEFT JOIN IMDB.TITLE_GENRES AS TG ON WS.TCONST = TG.TCONST
+            GROUP BY
+                WS.TCONST
+        )
         SELECT
             TG.GENRE,
             TB.START_YEAR,
@@ -380,7 +472,9 @@ def movie_graph(context: dg.AssetExecutionContext):
             WS.PRIORITY,
             TB.TITLE_TYPE,
             GENRES.GENRES,
-            DIRECTORS.DIRECTORS
+            DIRECTORS.DIRECTORS,
+            WRITERS.WRITERS,
+            ACTORS.ACTORS
         FROM
             IMDB.WATCH_STATUS AS WS
             LEFT JOIN IMDB.TITLE_BASICS AS TB ON WS.TCONST = TB.TCONST
@@ -388,6 +482,8 @@ def movie_graph(context: dg.AssetExecutionContext):
             LEFT JOIN IMDB.TITLE_GENRES AS TG ON TB.TCONST = TG.TCONST
             LEFT JOIN GENRES ON TB.TCONST = GENRES.TCONST
             LEFT JOIN DIRECTORS ON TB.TCONST = DIRECTORS.TCONST
+            LEFT JOIN WRITERS ON TB.TCONST = WRITERS.TCONST
+            LEFT JOIN ACTORS ON TB.TCONST = ACTORS.TCONST
         WHERE
             WS.WATCHED = FALSE
         ORDER BY
@@ -432,10 +528,12 @@ def movie_graph(context: dg.AssetExecutionContext):
         ("Title", "@primary_title"),
         ("Year", "@start_year"),
         ("Selected genre", "@genre"),
-        ("Directors", "@directors"),
         ("Genres", "@genres"),
         ("Average Rating", "@average_rating"),
         ("# votes", "@num_votes"),
+        ("Directors", "@directors"),
+        ("Writers", "@writers"),
+        ("Actors", "@actors"),
     ]
 
     p = figure(
@@ -703,12 +801,14 @@ def movie_cluster_graph(context: dg.AssetExecutionContext):
     hover = HoverTool(
         tooltips=[
             ("Title", "@primary_title"),
-            ("Score", "@average_rating"),
-            ("Votes", "@num_votes"),
             ("Year", "@start_year"),
+            ("Selected genre", "@genre"),
             ("Genres", "@genres"),
+            ("Average Rating", "@average_rating"),
+            ("# votes", "@num_votes"),
             ("Directors", "@directors"),
-            ("IMDb", "@tconst"),
+            ("Writers", "@writers"),
+            ("Actors", "@actors"),
         ]
     )
 
@@ -786,12 +886,14 @@ def movie_rating_votes_graph(context: dg.AssetExecutionContext):
     hover = HoverTool(
         tooltips=[
             ("Title", "@primary_title"),
-            ("Score", "@average_rating"),
-            ("Votes", "@num_votes"),
             ("Year", "@start_year"),
+            ("Selected genre", "@genre"),
             ("Genres", "@genres"),
+            ("Average Rating", "@average_rating"),
+            ("# votes", "@num_votes"),
             ("Directors", "@directors"),
-            ("IMDb", "@tconst"),
+            ("Writers", "@writers"),
+            ("Actors", "@actors"),
         ]
     )
 

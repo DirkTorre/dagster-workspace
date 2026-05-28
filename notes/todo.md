@@ -2,9 +2,11 @@
 1. (done) make scripts work with new database
 2. (done) add movie watch list to databse
     - (done) create auto table dump and table load script
-3. (in progres) add figures
-    - add author and writer to everything
-4. create automatic loading of onedrive data in dataabse
+3. (done) add figures
+4. google drive
+    - check if i can download and upload data via python
+    - data download and updating movie list
+    - uploading all files
 5. automate everything daily
 6. create excel file and automatically load to onedrive
 7. get everything working on server
