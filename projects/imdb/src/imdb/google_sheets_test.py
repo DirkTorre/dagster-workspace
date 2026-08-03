@@ -59,6 +59,9 @@ def main():
         print(df_gekeken)
         print()
         print(df_nog_kijken)
+
+        df_gekeken.write_parquet(file="gekeken.parquet")
+        df_nog_kijken.write_parquet(file="nog_kijken.parquet")
     except HttpError as error:
         # TODO(developer) - Handle errors from drive API.
         print(f"An error occurred: {error}")

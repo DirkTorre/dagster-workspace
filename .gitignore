@@ -71,3 +71,6 @@ deployments/local/.venv/
 *.tmp
 *.swp
 
+# custom
+.client_secret_*
+
