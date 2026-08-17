@@ -4,10 +4,13 @@
     - (done) create auto table dump and table load script
 3. (done) add figures
 4. google drive
-    - check if i can download and upload data via python
-    - data download and updating movie list
-    - uploading all files
-5. automate everything daily
+    - (done) check if i can download and upload data via python
+    - (done) data download and updating movie list
+    - create dagster asset for updating the sheet
+    - figure out to upload graphs and excel file to google sheets
+    - create a dagster asset for uploading everything to gdrive
+    - create credentials that last a year
+5. automate everything every 3 weeks
 6. create excel file and automatically load to onedrive
 7. get everything working on server
 8. add jenkins cicd
